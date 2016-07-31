@@ -1,211 +1,196 @@
 import sys, pygame, socket
 from pygame.locals import *
 import time
+import datetime
+import calendar
 import subprocess
-import os
-#import RPi.GPIO
 from subprocess import *
+import os
+import RPi.GPIO
+
 os.environ["SDL_FBDEV"] = "/dev/fb1"
 os.environ["SDL_MOUSEDEV"] = "/dev/input/touchscreen"
 os.environ["SDL_MOUSEDRV"] = "TSLIB"
 
+# Init variables
+SCREEN_HEIGHT = 240
+SCREEN_WIDTH = 320
+BUTTON_GAP = 20
+BUTTON_BUFFER = 20
+SYM_BUFFER = 30
+SYM_GAP = SCREEN_HEIGHT/5
+BUTTON_LEN = ((SCREEN_WIDTH-SYM_BUFFER) - (3*BUTTON_BUFFER)) / 3
+BUTTON_HEIGHT = 50
+
+# Fonts
+BUTTON_FONT_SIZE = 36
+LABEL_FONT_SIZE = 38
+SYM_FONT_SIZE = 30
+
+# COLORS
+BG_COLOR = (255,255,255)
+BOX_COLOR = (0,0,255)
+BUTTON_TEXT_COLOR = (0,0,255)
+BUTTON_OUTLINE_COLOR = (0,0,255)
+BUTTON_SELECT_COLOR = (0,255,0)
+SYM_TEXT_COLOR = (0,0,255)
+LABEL_TEXT_COLOR = (0,0,255)
+
+
 # Initialize pygame and hide mouse
 pygame.init()
-pygame.mouse.set_visible(0)
+screen_size = width, heigh = SCREEN_WIDTH, SCREEN_HEIGHT
+screen = pygame.display.set_mode(screen_size)
+#pygame.mouse.set_visible(0)
 
-# define function for printing text in a specific place with a specific width and height with a specific colour and border
-def make_button(text, xpo, ypo, height, width, colour):
-    font=pygame.font.Font(None,42)
-    label=font.render(str(text), 1, (colour))
-    screen.blit(label,(xpo,ypo))
-    pygame.draw.rect(screen, blue, (xpo-10,ypo-10,width,height),5)
+# Helpers
+class Button:
+    def __init__(self, label, startx, starty):
+        self.is_active = False
+        self.label = label
+        self.x = startx
+        self.y = starty
+        self.draw_button()
 
-# define function for printing text in a specific place with a specific colour
+    def set_active(self, active_flag=True):
+        self.is_active = active_flag
+
+    def set_label(self, newlabel):
+        self.label = newlabel
+
+    def draw_button(self):
+        # Clear button area
+        pygame.draw.rect(screen, BG_COLOR, (self.x-10, self.y-10, BUTTON_LEN, BUTTON_HEIGHT), 0)
+
+        font = pygame.font.Font(None, BUTTON_FONT_SIZE)
+        label = font.render(str(self.label), 1, BUTTON_TEXT_COLOR)
+        screen.blit(label, (self.x, self.y))
+        if self.is_active:
+            pygame.draw.rect(screen, BUTTON_SELECT_COLOR, (self.x-10, self.y-10, BUTTON_LEN, BUTTON_HEIGHT),2)
+        else:
+            pygame.draw.rect(screen, BUTTON_OUTLINE_COLOR, (self.x-10, self.y-10, BUTTON_LEN, BUTTON_HEIGHT), 2)
+
+    def in_bound(self, xtouch, ytouch):
+        # Check if in X
+        if self.x-10 <= xtouch <= self.x-10+BUTTON_LEN:
+            # Check if in Y
+            if self.y-10 <= ytouch <= self.y-10+BUTTON_HEIGHT:
+                return True
+        return False
+
+class DatePicker:
+    def __init__(self, startx, starty):
+        self.x = startx
+        self.y = starty
+        self.date = datetime.datetime.now()
+        self.month_button = Button(self.date.strftime("%b"), self.x+BUTTON_BUFFER, self.y+10)
+        self.day_button = Button(self.date.strftime("%d"), self.x+2*BUTTON_BUFFER+BUTTON_LEN, self.y+10)
+        self.year_button = Button(self.date.strftime("%y"), self.x+3*BUTTON_BUFFER+2*BUTTON_LEN, self.y+10)
+
+    def redraw_buttons(self):
+        self.month_button.draw_button()
+        self.day_button.draw_button()
+        self.year_button.draw_button()
+
+    def touch_event(self, x, y):
+        # deactivate all the buttons first
+        # check buttons for touch and activate
+        if self.month_button.in_bound(x, y):
+            self.month_button.set_active(True)
+            self.day_button.set_active(False)
+            self.year_button.set_active(False)
+        elif self.day_button.in_bound(x,y):
+            self.day_button.set_active(True)
+            self.month_button.set_active(False)
+            self.year_button.set_active(False)
+        elif self.year_button.in_bound(x,y):
+            self.year_button.set_active(True)
+            self.day_button.set_active(False)
+            self.month_button.set_active(False)
+        # redraw all buttons
+        self.redraw_buttons()
+
+    def add_month(self, months):
+        month = self.date.month-1
+        month += months
+        month = month % 12 + 1
+        day = min(self.date.day, calendar.monthrange(self.date.year, month)[1])
+        self.date = datetime.date(self.date.year, month, day)
+        print month
+
+    def add_day(self, days_to_add):
+        delta = datetime.timedelta(days=days_to_add)
+        self.date = self.date + delta
+        print self.date.day
+
+    def add_year(self, years):
+        month = self.date.month
+        year = self.date.year
+        print year
+        day = min(self.date.day, calendar.monthrange(self.date.year, month)[1])
+        self.date = datetime.date(year, month, day)
+
+    def increment(self, delta=1):
+        # Check which box is active
+        if self.month_button.is_active:
+            self.add_month(delta)
+        elif self.day_button.is_active:
+            self.add_day(delta)
+        elif self.year_button.is_active:
+            self.add_year(delta)
+        # Re-draw
+        self.year_button.set_label(self.date.strftime("%y"))
+        self.day_button.set_label(self.date.strftime("%d"))
+        self.month_button.set_label(self.date.strftime("%b"))
+        self.redraw_buttons()
+
 def make_label(text, xpo, ypo, fontsize, colour):
     font=pygame.font.Font(None,fontsize)
     label=font.render(str(text), 1, (colour))
     screen.blit(label,(xpo,ypo))
 
-# define function that checks for touch location
+# define function for finding and handeling touch events
 def on_touch():
-    # get the position that was touched
-    touch_pos = (pygame.mouse.get_pos() [0], pygame.mouse.get_pos() [1])
-    #  x_min                 x_max   y_min                y_max
-    # button 1 event
-    if 30 <= touch_pos[0] <= 240 and 105 <= touch_pos[1] <=160:
-            button(1)
-    # button 2 event
-    if 260 <= touch_pos[0] <= 470 and 105 <= touch_pos[1] <=160:
-            button(2)
-    # button 3 event
-    if 30 <= touch_pos[0] <= 240 and 180 <= touch_pos[1] <=235:
-            button(3)
-    # button 4 event
-    if 260 <= touch_pos[0] <= 470 and 180 <= touch_pos[1] <=235:
-            button(4)
-    # button 5 event
-    if 30 <= touch_pos[0] <= 240 and 255 <= touch_pos[1] <=310:
-            button(5)
-    # button 6 event
-    if 260 <= touch_pos[0] <= 470 and 255 <= touch_pos[1] <=310:
-            button(6)
+    # Get the touch position
+    touch_x = pygame.mouse.get_pos()[0]
+    touch_y= pygame.mouse.get_pos()[1]
 
-# Get Your External IP Address
-def get_ip():
-    ip_msg = "Not connected"
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        s.connect(('<broadcast>', 0))
-        ip_msg="IP:" + s.getsockname()[0]
-    except Exception:
-        pass
-    return ip_msg
+    # Notify date_picker
+    date_picker.touch_event(touch_x, touch_y)
 
-# Restart Raspberry Pi
-def restart():
-    command = "/usr/bin/sudo /sbin/shutdown -r now"
-    process = Popen(command.split(), stdout=PIPE)
-    output = process.communicate()[0]
-    return output
-
-# Shutdown Raspberry Pi
-def shutdown():
-    command = "/usr/bin/sudo /sbin/shutdown -h now"
-    process = Popen(command.split(), stdout=PIPE)
-    output = process.communicate()[0]
-    return output
-
-def get_temp():
-    command = "vcgencmd measure_temp"
-    process = Popen(command.split(), stdout=PIPE)
-    output = process.communicate()[0]
-    return output
-
-def run_cmd(cmd):
-    process = Popen(cmd.split(), stdout=PIPE)
-    output = process.communicate()[0]
-    return output
-
-# Define each button press action
-def button(number):
-    print "You pressed button ",number
-
-    if number == 1:
-        # desktop
-        screen.fill(black)
-        font=pygame.font.Font(None,72)
-        label=font.render("Launching Desktop", 1, (white))
-        screen.blit(label,(10,120))
-        pygame.display.flip()
-        pygame.quit()
-        subprocess.call("FRAMEBUFFER=/dev/fb1 startx", shell=True)
-        #run_cmd("FRAMEBUFFER=/dev/fb1 startx")
-        sys.exit()
-
-    if number == 2:
+    # Check exit
+    if exit_button.in_bound(touch_x, touch_y):
         # exit
-        screen.fill(black)
+        screen.fill((0,0,0))
         font=pygame.font.Font(None,72)
-        label=font.render("Exiting to Terminal", 1, (white))
+        label=font.render("Exiting to Terminal", 1, (255,255,255))
         screen.blit(label,(10,120))
         pygame.display.flip()
         pygame.quit()
         sys.exit()
 
-    if number == 3:
-        # Pretend Shutdown
-        screen.fill(black)
-        font=pygame.font.Font(None,48)
-        label=font.render("Battery Low, Shutting down", 1, (white))
-        screen.blit(label,(20,120))
-        pygame.display.flip()
-        time.sleep(120)
-        pygame.quit()
-        sys.exit()
+# Set Background color and border
+screen.fill(BG_COLOR)
+pygame.draw.rect(screen, BOX_COLOR, (0,0,SCREEN_WIDTH, SCREEN_HEIGHT), 4)
 
-    if number == 4:
-        # Wifi Settings
-        screen.fill(black)
-        font=pygame.font.Font(None,72)
-        label=font.render("WiFi Settings. .", 1, (white))
-        screen.blit(label,(20,120))
-        pygame.display.flip()
-        pygame.quit()
-        os.system("sudo python /home/pi/pifi.py/pifi.py --gui")
-        sys.exit()
+# Make Top Label
+make_label("Cynthia's NYT Printer", 5, 30, LABEL_FONT_SIZE, LABEL_TEXT_COLOR)
 
-    if number == 5:
-        # reboot
-        screen.fill(black)
-        font=pygame.font.Font(None,72)
-        label=font.render("Rebooting. .", 1, (white))
-        screen.blit(label,(40,120))
-        pygame.display.flip()
-        pygame.quit()
-        restart()
-        sys.exit()
+# Make Date Picker
+date_picker = DatePicker(0,90)
 
-    if number == 6:
-        # shutdown
-        screen.fill(black)
-        font=pygame.font.Font(None,72)
-        label=font.render("Shutting Down. .", 1, (white))
-        screen.blit(label,(20,120))
-        pygame.display.flip()
-        pygame.quit()
-        shutdown()
-        sys.exit()
+# Make Side Labels
+make_label("T", SCREEN_WIDTH-SYM_BUFFER+5, SYM_GAP, SYM_FONT_SIZE, SYM_TEXT_COLOR)
+make_label("P", SCREEN_WIDTH-SYM_BUFFER+5, 2*SYM_GAP, SYM_FONT_SIZE, SYM_TEXT_COLOR)
+make_label("+", SCREEN_WIDTH-SYM_BUFFER+5, 3*SYM_GAP, SYM_FONT_SIZE, SYM_TEXT_COLOR)
+make_label("-", SCREEN_WIDTH-SYM_BUFFER+5, 4*SYM_GAP, SYM_FONT_SIZE, SYM_TEXT_COLOR)
 
+exit_button = Button("Exit", 10, 200)
 
-
-# colors    R    G    B
-white   = (255, 255, 255)
-red     = (255,   0,   0)
-green   = (  0, 255,   0)
-blue    = (  0,   0, 255)
-black   = (  0,   0,   0)
-cyan    = ( 50, 255, 255)
-magenta = (255,   0, 255)
-yellow  = (255, 255,   0)
-orange  = (255, 127,   0)
-
-# Set up the base menu you can customize your menu with the colors above
-
-#set size of the screen
-size = width, height = 480, 320
-screen = pygame.display.set_mode(size)
-
-# Background Color
-screen.fill(white)
-
-# Outer Border
-pygame.draw.rect(screen, blue, (0,0,480,320),10)
-pi_hostname = run_cmd("hostname")
-pi_hostname = pi_hostname[:-1]
-# Buttons and labels
-# First Row Label
-make_label(pi_hostname + " - " +  get_ip(), 32, 30, 48, blue)
-# Second Row buttons 3 and 4
-make_button("     Desktop", 30, 105, 55, 210, blue)
-make_button("    Terminal", 260, 105, 55, 210, blue)
-# Third Row buttons 5 and 6
-make_button(" Empty Button", 30, 180, 55, 210, blue)
-make_button(" WiFi Settings", 260, 180, 55, 210, blue)
-# Fourth Row Buttons
-make_button("      Reboot", 30, 255, 55, 210, blue)
-make_button("   Shutdown", 260, 255, 55, 210, blue)
-
-# LBO Pin from Powerboost
-#RPi.GPIO.setmode (RPi.GPIO.BCM)
-#RPi.GPIO.setup(21, RPi.GPIO.IN, pull_up_down=RPi.GPIO.PUD_UP)
-
-
-#While loop to manage touch screen inputs
+# While loop to manage touch screen inputs
 while 1:
     for event in pygame.event.get():
         if event.type == pygame.MOUSEBUTTONDOWN:
-            pos = (pygame.mouse.get_pos() [0], pygame.mouse.get_pos() [1])
             on_touch()
 
         #ensure there is always a safe way to end the program if the touch screen fails
@@ -213,15 +198,15 @@ while 1:
             if event.key == K_ESCAPE:
                 sys.exit()
     pygame.display.update()
-'''
-    if RPi.GPIO.input(21) == RPi.GPIO.LOW:
-        screen.fill(black)
-        font=pygame.font.Font(None,48)
-        label=font.render("Battery Low, Shutting down", 1, (white))
-        screen.blit(label,(20,120))
-        pygame.display.flip()
-        time.sleep(10)
-        pygame.quit()
-        shutdown()
-        sys.exit()
-'''
+
+    # Check for side button presses
+    if RPi.GPIO.input(17) == RPi.GPIO.LOW:
+        # Print Top button
+        time.sleep(100)
+    elif RPi.GPIO.input(22) == RPi.GPIO.LOW:
+        # Print secont buttion
+        time.sleep(100)
+    elif RPi.GPIO.input(23) == RPi.GPIO.LOW:
+        date_picker.increment(1)
+    elif RPi.GPIO.input(27) == RPi.GPIO.LOW:
+        date_picker.increment(-1)

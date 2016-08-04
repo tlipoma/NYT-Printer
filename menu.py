@@ -125,7 +125,7 @@ class DatePicker:
 
     def add_year(self, years):
         month = self.date.month
-        year = self.date.year
+        year = self.date.year+1
         print year
         day = min(self.date.day, calendar.monthrange(self.date.year, month)[1])
         self.date = datetime.date(year, month, day)
@@ -161,7 +161,8 @@ def on_touch():
     # Check exit
     if exit_button.in_bound(touch_x, touch_y):
         # exit
-        screen.fill((0,0,0))
+        
+	screen.fill((0,0,0))
         font=pygame.font.Font(None,72)
         label=font.render("Exiting to Terminal", 1, (255,255,255))
         screen.blit(label,(10,120))
@@ -211,17 +212,20 @@ while 1:
     pygame.display.update()
 
 
+
     # Check for side button presses
     if GPIO.input(17) == GPIO.LOW:
         # Print Top button
-        time.sleep(200)
+        time.sleep(15)
     elif GPIO.input(22) == GPIO.LOW:
         # Print secont buttion
-        time.sleep(200)
+        time.sleep(15)
     elif GPIO.input(23) == GPIO.LOW:
         date_picker.increment(1)
-	time.sleep(200)
+	time.sleep(0.2)
     elif GPIO.input(27) == GPIO.LOW:
-        date_picker.increment(-1)
-	time.sleep(200)
+	date_picker.increment(-1)
+	time.sleep(0.2)
+	
+
 

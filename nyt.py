@@ -1,11 +1,13 @@
 from requests import Session
 import os
 from datetime import datetime
+import subprocess
+import printTools as pt
 
-def download_current_crossword():
-	download_crossword(datetime.now())
+def print_current_crossword():
+	print_crossword(datetime.now())
 
-def download_crossword(date):
+def print_crossword(date):
 	# Get username and pass
 	user = os.environ['NYT_USERNAME']
 	password = os.environ['NYT_PASSWORD']
@@ -20,9 +22,11 @@ def download_crossword(date):
 	# Download crossword
 	if request.status_code == 200:
 		request = session.get("http://www.nytimes.com/svc/crosswords/v2/puzzle/print/"+date_string +".pdf")
-	
-	# Save crossword
+
+	# Save and print crossword
 	if request.status_code == 200:
+		# Save
 		with open('current_crossword.pdf', 'wb') as f:
 			f.write(request.content)
-
+		# print
+		pt.print_file('current_crossword.pdf')

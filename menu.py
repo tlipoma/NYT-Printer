@@ -7,6 +7,7 @@ import subprocess
 from subprocess import *
 import os
 import RPi.GPIO as GPIO
+import nyt
 
 os.environ["SDL_FBDEV"] = "/dev/fb1"
 os.environ["SDL_MOUSEDEV"] = "/dev/input/touchscreen"
@@ -86,6 +87,9 @@ class DatePicker:
         self.month_button = Button(self.date.strftime("%b"), self.x+BUTTON_BUFFER, self.y+10)
         self.day_button = Button(self.date.strftime("%d"), self.x+2*BUTTON_BUFFER+BUTTON_LEN, self.y+10)
         self.year_button = Button(self.date.strftime("%y"), self.x+3*BUTTON_BUFFER+2*BUTTON_LEN, self.y+10)
+
+    def get_selected_date(self):
+        return self.date
 
     def redraw_buttons(self):
         self.month_button.draw_button()
@@ -215,10 +219,10 @@ while 1:
 
     # Check for side button presses
     if GPIO.input(17) == GPIO.LOW:
-        # Print Top button
+        nyt.print_current_crossword()
         time.sleep(15)
     elif GPIO.input(22) == GPIO.LOW:
-        # Print secont buttion
+        nyt.print_crossword(date_picker.get_selected_date())
         time.sleep(15)
     elif GPIO.input(23) == GPIO.LOW:
         date_picker.increment(1)

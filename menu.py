@@ -6,7 +6,7 @@ import calendar
 import subprocess
 from subprocess import *
 import os
-import RPi.GPIO
+import RPi.GPIO as GPIO
 
 os.environ["SDL_FBDEV"] = "/dev/fb1"
 os.environ["SDL_MOUSEDEV"] = "/dev/input/touchscreen"
@@ -125,7 +125,7 @@ class DatePicker:
 
     def add_year(self, years):
         month = self.date.month
-        year = self.date.year
+        year = self.date.year+1
         print year
         day = min(self.date.day, calendar.monthrange(self.date.year, month)[1])
         self.date = datetime.date(year, month, day)
@@ -161,7 +161,8 @@ def on_touch():
     # Check exit
     if exit_button.in_bound(touch_x, touch_y):
         # exit
-        screen.fill((0,0,0))
+        
+	screen.fill((0,0,0))
         font=pygame.font.Font(None,72)
         label=font.render("Exiting to Terminal", 1, (255,255,255))
         screen.blit(label,(10,120))
@@ -187,6 +188,17 @@ make_label("-", SCREEN_WIDTH-SYM_BUFFER+5, 4*SYM_GAP, SYM_FONT_SIZE, SYM_TEXT_CO
 
 exit_button = Button("Exit", 10, 200)
 
+
+# Set up gpio pins
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(27, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+GPIO.setup(17, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+GPIO.setup(22, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+GPIO.setup(23, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+
+
+
+
 # While loop to manage touch screen inputs
 while 1:
     for event in pygame.event.get():
@@ -199,14 +211,21 @@ while 1:
                 sys.exit()
     pygame.display.update()
 
+
+
     # Check for side button presses
-    if RPi.GPIO.input(17) == RPi.GPIO.LOW:
+    if GPIO.input(17) == GPIO.LOW:
         # Print Top button
-        time.sleep(100)
-    elif RPi.GPIO.input(22) == RPi.GPIO.LOW:
+        time.sleep(15)
+    elif GPIO.input(22) == GPIO.LOW:
         # Print secont buttion
-        time.sleep(100)
-    elif RPi.GPIO.input(23) == RPi.GPIO.LOW:
+        time.sleep(15)
+    elif GPIO.input(23) == GPIO.LOW:
         date_picker.increment(1)
-    elif RPi.GPIO.input(27) == RPi.GPIO.LOW:
-        date_picker.increment(-1)
+	time.sleep(0.2)
+    elif GPIO.input(27) == GPIO.LOW:
+	date_picker.increment(-1)
+	time.sleep(0.2)
+	
+
+
